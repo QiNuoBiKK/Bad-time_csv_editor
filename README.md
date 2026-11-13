@@ -1,6 +1,6 @@
 # Bad Time Editor
 
-一个专为 **Bad Time Simulator** (及类似 Construct 2 导出的 Sans 战斗引擎) 设计的**可视化弹幕时间轴编辑器**。
+一个专为 **Bad Time Simulator** (及类似 Construct 2 导出的 Sans 战斗引擎) 设计的**图形化弹幕时间轴编辑器**。
 
 告别手写繁杂的 CSV 坐标和逻辑跳转，通过拖拽和图形化界面，轻松创建、预览并导出属于你的弹幕！
 
