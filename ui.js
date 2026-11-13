@@ -1,6 +1,3 @@
-function t(key) { return LANG[currentLang][key] || key; }
-function tCmd(fn) { return (LANG[currentLang].cmds[fn] && LANG[currentLang].cmds[fn].label) ? LANG[currentLang].cmds[fn].label : (CMD_DEFS[fn] ? CMD_DEFS[fn].label : fn); }
-
 function openParamModal(i){
   const cmd = State.commands[i]; if(!cmd) return;
   const def = CMD_DEFS[cmd.fn]; if(!def) return;
@@ -52,7 +49,9 @@ function openParamModal(i){
         const valEl = document.querySelector(`#paramBody [data-v="${k}"]`);
         if(valEl) valEl.textContent = v;
       }
-      drawCanvas(); renderTimeline();
+      drawCanvas(); 
+      renderTimeline();
+      syncToScript();
     };
   });
 }
@@ -63,10 +62,10 @@ function closeParamModal(){
   State.origCmd = null;
 }
 
-document.getElementById('paramOk').onclick = () => { closeParamModal(); drawCanvas(); renderTimeline(); setStatus(currentLang === 'zh' ? '参数已更新' : 'Parameters updated'); };
+document.getElementById('paramOk').onclick = () => { closeParamModal(); drawCanvas(); renderTimeline(); syncToScript(); setStatus(currentLang === 'zh' ? '参数已更新' : 'Parameters updated'); };
 document.getElementById('paramCancel').onclick = () => {
   if(State.modalIdx >= 0 && State.origCmd) State.commands[State.modalIdx] = State.origCmd;
-  closeParamModal(); drawCanvas(); renderTimeline(); setStatus(currentLang === 'zh' ? '已取消' : 'Cancelled');
+  closeParamModal(); drawCanvas(); renderTimeline(); syncToScript(); setStatus(currentLang === 'zh' ? '已取消' : 'Cancelled');
 };
 document.getElementById('paramClose').onclick = () => document.getElementById('paramCancel').click();
 document.getElementById('paramMask').onclick = e => { if(e.target.id === 'paramMask') document.getElementById('paramCancel').click(); };
@@ -76,7 +75,7 @@ document.getElementById('paramDelete').onclick = () => {
   State.commands.splice(State.modalIdx, 1);
   State.selectedIndex = -1;
   closeParamModal();
-  renderAll(); setStatus(currentLang === 'zh' ? '已删除' : 'Deleted');
+  renderAll(); syncToScript(); setStatus(currentLang === 'zh' ? '已删除' : 'Deleted');
 };
 
 function createAt(fn, x, y){
@@ -96,7 +95,11 @@ function createAt(fn, x, y){
   const rule = AUTO_SOUND[fn];
   if(rule && rule.cond(args)) State.commands.push({ fn: 'Sound', args: {name: rule.sound, spd: 0}, delay: 0 });
   State.selectedIndex = State.commands.length - 1;
-  renderAll();
+  
+  renderTimeline();
+  drawCanvas();
+  syncToScript();
+  
   setStatus((currentLang === 'zh' ? '已创建 ' : 'Created ') + tCmd(fn));
 }
 
@@ -209,6 +212,14 @@ function buildCSV(){
   return lines.join('\n');
 }
 
+function syncToScript(){
+  const editor = document.getElementById('scriptEditor');
+  if(editor) {
+    editor.value = buildCSV();
+    if (typeof updateLineNums === 'function') updateLineNums();
+  }
+}
+
 function saveCSV(){
   const csv = buildCSV();
   if(!csv){ setStatus(currentLang === 'zh' ? '没有指令' : 'No commands'); return; }
@@ -239,7 +250,8 @@ function importCSV(){
       });
       pushUndo();
       State.commands = imported; State.selectedIndex = -1;
-      renderAll(); setStatus((currentLang === 'zh' ? '已导入 ' : 'Imported ') + imported.length + (currentLang === 'zh' ? ' 条指令' : ' commands'));
+      renderAll(); syncToScript();
+      setStatus((currentLang === 'zh' ? '已导入 ' : 'Imported ') + imported.length + (currentLang === 'zh' ? ' 条指令' : ' commands'));
     };
     r.readAsText(f);
   };
@@ -253,7 +265,8 @@ document.getElementById('btnClear').onclick = () => {
   if(State.commands.length === 0) return;
   if(confirm(currentLang === 'zh' ? '确定清空？' : 'Clear all?')){
     pushUndo(); State.commands = []; State.selectedIndex = -1;
-    renderAll(); setStatus(currentLang === 'zh' ? '已清空' : 'Cleared');
+    renderTimeline(); drawCanvas(); syncToScript();
+    setStatus(currentLang === 'zh' ? '已清空' : 'Cleared');
   }
 };
 document.getElementById('btnAddCmd').onclick = openAddMenu;
@@ -262,6 +275,13 @@ document.getElementById('addMask').onclick = e => { if(e.target.id === 'addMask'
 document.getElementById('btnHelp').onclick = () => document.getElementById('helpMask').classList.add('show');
 document.getElementById('helpClose').onclick = () => document.getElementById('helpMask').classList.remove('show');
 document.getElementById('helpMask').onclick = e => { if(e.target.id === 'helpMask') document.getElementById('helpMask').classList.remove('show'); };
+
+// 帮助文档内容填充
+document.getElementById('helpBody').innerHTML = `
+  <p style="margin-bottom:10px"><b>1. 拖拽模式：</b>从底部工具栏将指令卡片拖入中间画布。点击画布上的图形可实时调整参数。</p>
+  <p style="margin-bottom:10px"><b>2. 脚本模式：</b>切换至“脚本代码”可直接修改底层 CSV 格式文本，代码修改后点击“预览”或切回拖拽模式即可同步。</p>
+  <p style="margin-bottom:10px"><b>3. 导出：</b>点击右上角“保存 CSV”即可下载文件，放入游戏根目录后可在游戏内读取。</p>
+`;
 
 document.getElementById('tabDrag').onclick = () => {
   State.mode = 'drag';
@@ -277,16 +297,42 @@ document.getElementById('tabScript').onclick = () => {
   document.getElementById('tabScript').classList.add('active');
   document.getElementById('modeDrag').classList.add('hidden');
   document.getElementById('modeScript').classList.remove('hidden');
+  syncToScript();
 };
 
-document.getElementById('scPreview').onclick = () => setStatus(currentLang === 'zh' ? '请导出 CSV 后在游戏中测试' : 'Please export CSV and test in game');
+document.getElementById('scPreview').onclick = () => {
+  // 解析脚本区域的代码并更新图形区
+  const text = document.getElementById('scriptEditor').value;
+  const lines = text.split('\n').filter(l => l.trim() && !l.startsWith('#'));
+  let prevTime = 0; const imported = [];
+  lines.forEach(line => {
+    const cols = line.split(',').map(s => s.trim()); if(cols.length < 2) return;
+    const time = parseFloat(cols[0]), fn = cols[1];
+    if(isNaN(time) || !CMD_DEFS[fn]) return;
+    const def = CMD_DEFS[fn];
+    const args = {}; def.params.forEach((p,i) => { args[p.k] = cols[i+2] !== undefined ? cols[i+2] : 0; });
+    let d = time - prevTime; if(d < 0) d = 0;
+    imported.push({fn: fn, args, delay: d});
+    prevTime = time;
+  });
+  if (imported.length > 0) {
+    pushUndo();
+    State.commands = imported; State.selectedIndex = -1;
+    renderAll();
+    setStatus(currentLang === 'zh' ? '脚本已应用至画布' : 'Script applied to canvas');
+  }
+};
 document.getElementById('scStop').onclick = () => {};
 document.getElementById('scLoadExample').onclick = () => {
   document.getElementById('scriptEditor').value = `0,CombatZoneResize,133,251,508,391,TLResume
 0,HeartTeleport,320,304
 0,EndAttack`;
+  if (typeof updateLineNums === 'function') updateLineNums();
 };
-document.getElementById('scClear').onclick = () => { document.getElementById('scriptEditor').value = ''; };
+document.getElementById('scClear').onclick = () => { 
+  document.getElementById('scriptEditor').value = ''; 
+  if (typeof updateLineNums === 'function') updateLineNums();
+};
 
 function updateUILanguage() {
   document.querySelector('#topbar .title').textContent = t('title');
@@ -314,7 +360,7 @@ function updateUILanguage() {
   document.getElementById('paramCancel').textContent = t('paramCancel');
   document.getElementById('paramOk').textContent = t('paramOk');
   document.getElementById('paramDelete').textContent = t('paramDelete');
-
+  
   document.getElementById('statusBar').textContent = t('statusReady');
 
   buildBottomTools();

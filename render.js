@@ -1,9 +1,7 @@
-/* ==================== 画布渲染 ==================== */
 const cv = document.getElementById('canvas');
 const ctx = cv.getContext('2d');
 const coordDisplay = document.getElementById('coordDisplay');
 
-// 坐标追踪
 cv.addEventListener('pointermove', e => {
   const rect = cv.getBoundingClientRect();
   const mx = Math.round((e.clientX - rect.left) / rect.width * State.zoneW);
@@ -11,7 +9,6 @@ cv.addEventListener('pointermove', e => {
   coordDisplay.textContent = `X: ${mx} Y: ${my}`;
 });
 
-// 缩放画布，保持比例
 function resizeCanvas(){
   const w = document.getElementById('canvasArea');
   if(!w) return;
@@ -26,36 +23,46 @@ function resizeCanvas(){
   cv.style.height = Math.round(ch) + 'px';
 }
 
-// 绘制画布
 function drawCanvas(){
   const w = cv.width, h = cv.height;
   ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = '#0a0a0a'; 
-  ctx.fillRect(0, 0, w, h);
   
-  // 背景网格
-  ctx.strokeStyle = '#1a1a1a'; 
-  ctx.lineWidth = 1;
-  for(let i=1; i<10; i++) {
-    ctx.beginPath(); ctx.moveTo(i/10*w, 0); ctx.lineTo(i/10*w, h); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0, i/10*h); ctx.lineTo(w, i/10*h); ctx.stroke();
-  }
+  // 外层大框
+  ctx.fillStyle = '#0d1117'; 
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = '#30363d'; 
+  ctx.lineWidth = 4;
+  ctx.strokeRect(2, 2, w - 4, h - 4);
 
-  // 战斗框
+  // 战斗框内部
   const f = State.scriptZone;
-  ctx.strokeStyle = '#fff'; 
+  const fLeft = f.l / State.zoneW * w;
+  const fTop = f.t / State.zoneH * h;
+  const fWidth = (f.r - f.l) / State.zoneW * w;
+  const fHeight = (f.b - f.t) / State.zoneH * h;
+  
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.03)'; 
+  ctx.fillRect(fLeft, fTop, fWidth, fHeight);
+  ctx.strokeStyle = '#c9d1d9'; 
   ctx.lineWidth = 2;
-  ctx.strokeRect(f.l/State.zoneW*w, f.t/State.zoneH*h, (f.r-f.l)/State.zoneW*w, (f.b-f.t)/State.zoneH*h);
+  ctx.strokeRect(fLeft, fTop, fWidth, fHeight);
 
-  // 红心
-  const hx = State.heartX/State.zoneW*w;
-  const hy = State.heartY/State.zoneH*h;
-  ctx.fillStyle = '#f00'; 
-  ctx.beginPath(); ctx.arc(hx, hy, 8, 0, Math.PI*2); ctx.fill();
-  ctx.strokeStyle = '#ff8899'; 
-  ctx.beginPath(); ctx.arc(hx, hy, 12, 0, Math.PI*2); ctx.stroke();
+  // 网格裁剪
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(fLeft, fTop, fWidth, fHeight);
+  ctx.clip(); 
+  ctx.strokeStyle = 'rgba(139, 148, 158, 0.15)'; 
+  ctx.lineWidth = 1;
+  for(let i = 0; i < w; i += 20) {
+    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, h); ctx.stroke();
+  }
+  for(let i = 0; i < h; i += 20) {
+    ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(w, i); ctx.stroke();
+  }
+  ctx.restore();
 
-  // 弹幕指令绘制
+  // 指令渲染
   State.commands.forEach((c, i) => {
     const isSel = (i === State.selectedIndex);
     ctx.lineWidth = isSel ? 4 : 2;
@@ -97,19 +104,22 @@ function drawCanvas(){
         ctx.fillStyle = 'rgba(102,221,255,0.15)';
         ctx.fillRect(-size/2, -size/3, size, size*0.8);
         ctx.strokeRect(-size/2, -size/3, size, size*0.8);
-        // 射击瞄准线
         ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(Math.hypot(c.args.ex - c.args.sx, c.args.ey - c.args.sy)/State.zoneW*w, 0); ctx.stroke();
         ctx.restore();
         break;
       }
       case 'HeartTeleport':
-        ctx.beginPath(); ctx.arc(sx(c.args.x), sy(c.args.y), 12, 0, Math.PI*2); ctx.stroke();
+        ctx.strokeStyle = '#f85149'; 
+        ctx.beginPath(); 
+        ctx.moveTo(sx(c.args.x) - 10, sy(c.args.y)); ctx.lineTo(sx(c.args.x) + 10, sy(c.args.y)); 
+        ctx.moveTo(sx(c.args.x), sy(c.args.y) - 10); ctx.lineTo(sx(c.args.x), sy(c.args.y) + 10); 
+        ctx.stroke();
         break;
       case 'CombatZoneResize':
       case 'CombatZoneResizeInstant':
         ctx.lineWidth = 1; 
         ctx.setLineDash([5, 5]); 
-        ctx.strokeStyle = '#ff8844';
+        ctx.strokeStyle = '#e3b341'; 
         ctx.strokeRect(sx(c.args.l), sy(c.args.t), num(c.args.r - c.args.l)/State.zoneW*w, num(c.args.b - c.args.t)/State.zoneH*h);
         ctx.setLineDash([]);
         break;
@@ -117,7 +127,6 @@ function drawCanvas(){
   });
 }
 
-/* ==================== 鼠标交互：点击、拖拽 ==================== */
 function hitTest(mx, my){
   const w = cv.width, h = cv.height;
   for(let i = State.commands.length - 1; i >= 0; i--){
@@ -163,7 +172,6 @@ cv.addEventListener('pointermove', e => {
   const cmd = State.commands[State.drag.index];
   const orig = State.drag.origArgs;
   if(!cmd) return;
-  
   if(cmd.fn.includes('Bone') || cmd.fn === 'HeartTeleport' || cmd.fn === 'Platform'){
     if(cmd.args.x !== undefined) cmd.args.x = Math.round(num(orig.x) + dx);
     if(cmd.args.y !== undefined) cmd.args.y = Math.round(num(orig.y) + dy);
@@ -181,7 +189,6 @@ cv.addEventListener('pointerup', e => {
     const rect = cv.getBoundingClientRect();
     const outside = e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom;
     const moved = Math.abs(e.clientX - State.drag.startX) + Math.abs(e.clientY - State.drag.startY) > 4;
-    
     if(outside){
       State.commands.splice(State.drag.index, 1);
       State.selectedIndex = -1;

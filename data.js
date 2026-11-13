@@ -1,4 +1,3 @@
-/* ==================== 数据定义 ==================== */
 const CMD_DEFS = {
   BoneH:{label:'水平骨头',params:[{k:'x',t:'X',min:0,max:640,step:1},{k:'y',t:'Y',min:0,max:480,step:1},{k:'len',t:'长度',min:10,max:500,step:5},{k:'dir',t:'方向',opts:[{v:0,t:'右'},{v:1,t:'下'},{v:2,t:'左'},{v:3,t:'上'}]},{k:'spd',t:'速度',min:50,max:800,step:10},{k:'col',t:'颜色',opts:[{v:0,t:'白'},{v:1,t:'蓝'},{v:2,t:'橙'}]}]},
   BoneV:{label:'垂直骨头',params:[{k:'x',t:'X',min:0,max:640,step:1},{k:'y',t:'Y',min:0,max:480,step:1},{k:'len',t:'长度',min:10,max:500,step:5},{k:'dir',t:'方向',opts:[{v:0,t:'右'},{v:1,t:'下'},{v:2,t:'左'},{v:3,t:'上'}]},{k:'spd',t:'速度',min:50,max:800,step:10},{k:'col',t:'颜色',opts:[{v:0,t:'白'},{v:1,t:'蓝'},{v:2,t:'橙'}]}]},
@@ -45,7 +44,6 @@ const SCRIPT_ARG_COUNT = { SET:2, ADD:3, SUB:3, MUL:3, DIV:3, MOD:3, COS:2, SIN:
 const AUTO_SOUND = { BlackScreen: { cond: a => num(a.on) === 1, sound: 'Flash' }, SansSlam: { cond: () => true, sound: 'Slam' } };
 const SNIPPETS = [{name:'RND', text:'RND,变量,上限'},{name:'JMPNZ', text:'JMPNZ,行号,$变量'},{name:'GetHeartPos', text:'GetHeartPos,HeartX,HeartY'},{name:'SET', text:'SET,变量,值'}];
 
-/* ==================== 状态管理 ==================== */
 const State = {
   mode:'drag', zoneW:640, zoneH:480, commands:[], selectedIndex:-1,
   playing:false, playStart:0, playRAF:null, undoStack:[], drag:null, dragTool:null,
@@ -54,11 +52,9 @@ const State = {
   pendingParamIndex:-1, modalIdx:-1, origCmd:null
 };
 
-/* ==================== 工具函数 ==================== */
 function setStatus(m){document.getElementById('statusBar').textContent=m;}
 function num(v){return parseFloat(v)||0;}
 function colorOf(c){if(c===1)return'#4488ff';if(c===2)return'#ff8844';return'#fff';}
-
 function pushUndo(){
   State.undoStack.push(JSON.parse(JSON.stringify(State.commands)));
   if(State.undoStack.length>50)State.undoStack.shift();
@@ -70,16 +66,19 @@ function undo(){
   renderAll();
   setStatus('已撤销');
 }
+function renderAll(){
+  if (typeof drawCanvas === 'function') drawCanvas();
+  if (typeof renderTimeline === 'function') renderTimeline();
+}
+
 const LANG = {
   zh: {
-    title: 'BAD TIME',
-    tabDrag: '拖拽编辑', tabScript: '脚本代码',
+    title: 'editor', tabDrag: '拖拽编辑', tabScript: '脚本代码',
     btnHelp: '使用说明', btnAdd: '添加指令', btnPlay: '播放', btnUndo: '撤销', btnSave: '保存 CSV',
     tlTitle: 'TIMELINE 时间轴', tlImport: '导入', tlClear: '清空',
-    stWrite: '编写模式', stGraph: '图形模式', stPreview: '预览', stStop: '停止', stExample: '载入示例', stClear: '清空',
+    stWrite: '编写', stGraph: '图形', stPreview: '预览', stStop: '停止', stExample: '载入示例', stClear: '清空',
     statusReady: '就绪 · 拖拽下方卡片至画布创建指令 · 点击指令修改参数',
-    helpTitle: '编辑器使用说明', helpClose: '×',
-    addTitle: '添加指令',
+    helpTitle: '编辑器使用说明', helpClose: '×', addTitle: '添加指令',
     paramTitle: '参数调整', paramDelete: '删除', paramCancel: '取消', paramOk: '确定修改',
     cmds: {
       BoneH: {label:'水平骨头', p:{x:'X',y:'Y',len:'长度',dir:'方向',spd:'速度',col:'颜色'}, opts:{dir:['右','下','左','上'], col:['白','蓝','橙']}},
@@ -89,8 +88,7 @@ const LANG = {
       BoneStab: {label:'骨墙', p:{dir:'方向',dist:'距离',warn:'预警',stay:'停留'}, opts:{dir:['右','下','左','上']}},
       GasterBlaster: {label:'龙骨炮', p:{size:'尺寸',sx:'起始X',sy:'起始Y',ex:'终点X',ey:'终点Y',ang:'角度',spin:'蓄力',blast:'开火'}, opts:{size:['细','正常','大']}},
       HeartMode: {label:'灵魂模式', p:{mode:'模式'}, opts:{mode:['红','蓝']}},
-      HeartTeleport: {label:'灵魂瞬移', p:{x:'X',y:'Y'}},
-      HeartMaxFallSpeed: {label:'下落速度', p:{spd:'速度'}},
+      HeartTeleport: {label:'灵魂瞬移', p:{x:'X',y:'Y'}}, HeartMaxFallSpeed: {label:'下落速度', p:{spd:'速度'}},
       SansSlam: {label:'重力砸击', p:{dir:'方向'}, opts:{dir:['右','下','左','上']}},
       SansSlamDamage: {label:'砸击伤害', p:{on:'开关'}, opts:{on:['关','开']}},
       DamagePlayer: {label:'伤害玩家', p:{dmg:'伤害'}},
@@ -111,14 +109,12 @@ const LANG = {
     }
   },
   en: {
-    title: 'BAD TIME',
-    tabDrag: 'Drag', tabScript: 'Script',
+    title: 'editor', tabDrag: 'Drag', tabScript: 'Script',
     btnHelp: 'Help', btnAdd: 'Add', btnPlay: 'Play', btnUndo: 'Undo', btnSave: 'Save CSV',
     tlTitle: 'TIMELINE', tlImport: 'Import', tlClear: 'Clear',
     stWrite: 'Write', stGraph: 'Graph', stPreview: 'Preview', stStop: 'Stop', stExample: 'Example', stClear: 'Clear',
     statusReady: 'Ready · Drag tools to canvas · Click to edit params',
-    helpTitle: 'Help', helpClose: '×',
-    addTitle: 'Add Command',
+    helpTitle: 'Help', helpClose: '×', addTitle: 'Add Command',
     paramTitle: 'Parameters', paramDelete: 'Delete', paramCancel: 'Cancel', paramOk: 'Apply',
     cmds: {
       BoneH: {label:'Bone H', p:{x:'X',y:'Y',len:'Len',dir:'Dir',spd:'Spd',col:'Color'}, opts:{dir:['R','D','L','U'], col:['White','Blue','Orange']}},
@@ -128,8 +124,7 @@ const LANG = {
       BoneStab: {label:'Bone Stab', p:{dir:'Dir',dist:'Dist',warn:'Warn',stay:'Stay'}, opts:{dir:['R','D','L','U']}},
       GasterBlaster: {label:'Blaster', p:{size:'Size',sx:'StartX',sy:'StartY',ex:'EndX',ey:'EndY',ang:'Ang',spin:'Spin',blast:'Blast'}, opts:{size:['Thin','Norm','Big']}},
       HeartMode: {label:'Heart Mode', p:{mode:'Mode'}, opts:{mode:['Red','Blue']}},
-      HeartTeleport: {label:'Teleport', p:{x:'X',y:'Y'}},
-      HeartMaxFallSpeed: {label:'Fall Speed', p:{spd:'Spd'}},
+      HeartTeleport: {label:'Teleport', p:{x:'X',y:'Y'}}, HeartMaxFallSpeed: {label:'Fall Speed', p:{spd:'Spd'}},
       SansSlam: {label:'Slam', p:{dir:'Dir'}, opts:{dir:['R','D','L','U']}},
       SansSlamDamage: {label:'Slam Damage', p:{on:'Toggle'}, opts:{on:['Off','On']}},
       DamagePlayer: {label:'Damage', p:{dmg:'Dmg'}},
@@ -151,3 +146,5 @@ const LANG = {
   }
 };
 let currentLang = 'zh';
+function t(key) { return LANG[currentLang][key] || key; }
+function tCmd(fn) { return (LANG[currentLang].cmds[fn] && LANG[currentLang].cmds[fn].label) ? LANG[currentLang].cmds[fn].label : (CMD_DEFS[fn] ? CMD_DEFS[fn].label : fn); }
