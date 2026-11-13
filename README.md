@@ -20,9 +20,7 @@
 ## 快速开始
 
 ### 1. 运行编辑器
-无需安装任何依赖或启动本地服务器，直接用现代浏览器（Chrome / Edge / Firefox）打开 `index.html` 即可。
-
-注:`下载源码的要把index.html里面的资源引用的代码中的"/Bad-time_csv_editor/"去除才可使用`
+如果是下载`源码`直接打开`index.html`也可使用[网页版](https://qinuobikk.github.io/Bad-time_csv_editor)
 
 ### 2. 创建你的弹幕
 1. 点击底部的指令卡片（如“龙骨炮”、“水平骨头”）。
